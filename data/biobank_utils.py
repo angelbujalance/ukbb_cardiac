@@ -349,7 +349,7 @@ class Biobank_Dataset(object):
                         print('Warning: dicom file missing for {0}: time point {1}. '
                               'Image will be copied from the previous time point.'.format(dir[z], t))
                         volume[:, :, z, t] = volume[:, :, z, t - 1]
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError, AttributeError):
                         print('Warning: failed to read pixel_array from file {0}. '
                               'Image will be copied from the previous time point.'.format(os.path.join(dir[z], f)))
                         volume[:, :, z, t] = volume[:, :, z, t - 1]
@@ -423,7 +423,10 @@ class Biobank_Dataset(object):
                                 label[:, :, z, t] = lab_up[::up, ::up].transpose()
 
             # Temporal spacing
-            dt = (files_time[1][1] - files_time[0][1]) * 1e-3
+            try:
+                dt = (files_time[1][1] - files_time[0][1]) * 1e-3
+            except IndexError:
+                dt = 1
 
             # Store the image
             self.data[name] = BaseImage()

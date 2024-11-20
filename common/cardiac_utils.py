@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 from vtk.util import numpy_support
 from scipy import interpolate
 import skimage
+import skimage.measure
 from ukbb_cardiac.common.image_utils import *
 
 
@@ -190,7 +191,7 @@ def determine_aha_coordinate_system(seg_sa, affine_sa):
     rv = get_largest_cc(rv).astype(np.uint8)
 
     # Extract epicardial contour
-    _, contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     epi_contour = contours[0][:, 0, :]
 
     # Find the septum, which is the intersection between LV and RV
@@ -385,7 +386,8 @@ def evaluate_wall_thickness(seg_name, output_name_stem, part=None):
     lines = vtk.vtkCellArray()
 
     # Save epicardial contour for debug and demonstration purposes
-    save_epi_contour = False
+    # save_epi_contour = False
+    save_epi_contour = True
     if save_epi_contour:
         epi_points = vtk.vtkPoints()
         points_epi_aha = vtk.vtkIntArray()
@@ -417,11 +419,11 @@ def evaluate_wall_thickness(seg_name, output_name_stem, part=None):
         # Extract endocardial contour
         # Note: cv2 considers an input image as a Y x X array, which is different
         # from nibabel which assumes a X x Y array.
-        _, contours, _ = cv2.findContours(cv2.inRange(endo, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(cv2.inRange(endo, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         endo_contour = contours[0][:, 0, :]
 
         # Extract epicardial contour
-        _, contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         epi_contour = contours[0][:, 0, :]
 
         # Smooth the contours
@@ -612,7 +614,7 @@ def extract_myocardial_contour(seg_name, contour_name_stem, part=None, three_sli
         lv_centre = np.dot(affine, np.array([cx, cy, z, 1]))[:3]
 
         # Extract epicardial contour
-        _, contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         epi_contour = contours[0][:, 0, :]
         epi_contour = approximate_contour(epi_contour, periodic=True)
 
@@ -666,7 +668,7 @@ def extract_myocardial_contour(seg_name, contour_name_stem, part=None, three_sli
         # Extract endocardial contour
         # Note: cv2 considers an input image as a Y x X array, which is different
         # from nibabel which assumes a X x Y array.
-        _, contours, _ = cv2.findContours(cv2.inRange(endo, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, _ = cv2.findContours(cv2.inRange(endo, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         endo_contour = contours[0][:, 0, :]
         endo_contour = approximate_contour(endo_contour, periodic=True)
 
@@ -748,7 +750,6 @@ def extract_myocardial_contour(seg_name, contour_name_stem, part=None, three_sli
         writer.SetFileName(contour_name)
         writer.SetInputData(poly)
         writer.Write()
-        os.system('sed -i "1s/4.1/4.0/" {0}'.format(contour_name))
 
 
 def evaluate_strain_by_length(contour_name_stem, T, dt, output_name_stem):
@@ -819,7 +820,7 @@ def evaluate_strain_by_length(contour_name_stem, T, dt, output_name_stem):
         writer.SetInputData(poly)
         writer.SetFileName(filename)
         writer.Write()
-        os.system('sed -i "1s/4.1/4.0/" {0}'.format(filename))
+        # os.system('sed -i "1s/5.1/4.0/" {0}'.format(filename))
 
         # Calculate the segmental and global strains
         for i in range(0, 16):
@@ -1187,11 +1188,11 @@ def extract_la_myocardial_contour(seg_la_name, seg_sa_name, contour_name):
     # Extract endocardial contour
     # Note: cv2 considers an input image as a Y x X array, which is different
     # from nibabel which assumes a X x Y array.
-    _, contours, _ = cv2.findContours(cv2.inRange(endo, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    contours, _ = cv2.findContours(cv2.inRange(endo, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     endo_contour = contours[0][:, 0, :]
 
     # Extract epicardial contour
-    _, contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    contours, _ = cv2.findContours(cv2.inRange(epi, 1, 1), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
     epi_contour = contours[0][:, 0, :]
 
     # Record the points located on the mitral valve plane.
@@ -1318,7 +1319,7 @@ def extract_la_myocardial_contour(seg_la_name, seg_sa_name, contour_name):
 
     # Change vtk file version to 4.0 to avoid the warning by MIRTK, which is
     # developed using VTK 6.3, which does not know file version 4.1.
-    os.system('sed -i "1s/4.1/4.0/" {0}'.format(contour_name))
+    # os.system('sed -i "1s/5.1/4.0/" {0}'.format(contour_name))
 
 
 def evaluate_la_strain_by_length(contour_name_stem, T, dt, output_name_stem):
@@ -1615,14 +1616,38 @@ def plot_bulls_eye(data, vmin, vmax, cmap='Reds', color_line='black'):
 def atrium_pass_quality_control(label, label_dict):
     """ Quality control for atrial volume estimation """
     for l_name, l in label_dict.items():
-        # Criterion: the atrium does not disappear at any time point so that we can
+        # Criterion 1: the atrium does not disappear at any time point so that we can
         # measure the area and length.
         T = label.shape[3]
         for t in range(T):
-            label_t = label[:, :, 0, t]
+            label_t = label[:, :, :, t]
             area = np.sum(label_t == l)
             if area == 0:
                 print('The area of {0} is 0 at time frame {1}.'.format(l_name, t))
+                return False
+
+        # Criterion 2: no fragmented segmentation
+        pixel_thres = 10
+        for t in range(T):
+            seg_t = label[:, :, :, t]
+            cc, n_cc = skimage.measure.label(seg_t == l, connectivity=2, return_num=True)
+            count_cc = 0
+            for i in range(1, n_cc + 1):
+                binary_cc = (cc == i)
+                if np.sum(binary_cc) > pixel_thres:
+                    # If this connected component has more than certain pixels, count it.
+                    count_cc += 1
+            if count_cc >= 2:
+                print('The segmentation has at least two connected components with more than {0} pixels '
+                      'at time frame {1}.'.format(pixel_thres, t))
+                return False
+
+        # Criterion 3: no abrupt change of area
+        A = np.sum(label == l, axis=(0, 1, 2))
+        for t in range(T):
+            ratio = A[t] / float(A[t - 1])
+            if ratio >= 2 or ratio <= 0.5:
+                print('There is abrupt change of area at time frame {0}.'.format(t))
                 return False
     return True
 
@@ -1741,7 +1766,8 @@ def aorta_pass_quality_control(image, seg):
         pixel_thres = 10
         for t in range(T):
             seg_t = seg[:, :, :, t]
-            cc, n_cc = skimage.measure.label(seg_t == l, neighbors=8, return_num=True)
+            # cc, n_cc = skimage.measure.label(seg_t == l, neighbors=8, return_num=True)
+            cc, n_cc = skimage.measure.label(seg_t == l, connectivity=2, return_num=True)
             count_cc = 0
             for i in range(1, n_cc + 1):
                 binary_cc = (cc == i)
