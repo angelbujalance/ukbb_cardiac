@@ -18,62 +18,99 @@ import math
 import numpy as np
 import nibabel as nib
 import tensorflow as tf
+import argparse
+import sys
+sys.path.append('/home/abujalancegome/deep_risk')
 from ukbb_cardiac.common.image_utils import rescale_intensity
 
+import pandas as pd
 
 """ Deployment parameters """
-FLAGS = tf.app.flags.FLAGS
-tf.app.flags.DEFINE_enum('seq_name', 'sa',
-                         ['sa', 'la_2ch', 'la_4ch'],
-                         'Sequence name.')
-tf.app.flags.DEFINE_string('data_dir', '/vol/bitbucket/wbai/own_work/ukbb_cardiac_demo',
-                           'Path to the data set directory, under which images '
-                           'are organised in subdirectories for each subject.')
-tf.app.flags.DEFINE_string('model_path',
-                           '',
-                           'Path to the saved trained model.')
-tf.app.flags.DEFINE_boolean('process_seq', True,
-                            'Process a time sequence of images.')
-tf.app.flags.DEFINE_boolean('save_seg', True,
-                            'Save segmentation.')
-tf.app.flags.DEFINE_boolean('seg4', False,
-                            'Segment all the 4 chambers in long-axis 4 chamber view. '
-                            'This seg4 network is trained using 200 subjects from Application 18545.'
-                            'By default, for all the other tasks (ventricular segmentation'
-                            'on short-axis images and atrial segmentation on long-axis images,'
-                            'the networks are trained using 3,975 subjects from Application 2964.')
+# FLAGS = tf.app.flags.FLAGS
+# tf.app.flags.DEFINE_enum('seq_name', 'sa',
+#                          ['sa', 'la_2ch', 'la_4ch'],
+#                          'Sequence name.')
+# tf.app.flags.DEFINE_string('data_dir', '/vol/bitbucket/wbai/own_work/ukbb_cardiac_demo',
+#                            'Path to the data set directory, under which images '
+#                            'are organised in subdirectories for each subject.')
+# tf.app.flags.DEFINE_string('model_path',
+#                            '',
+#                            'Path to the saved trained model.')
+# tf.app.flags.DEFINE_boolean('process_seq', True,
+#                             'Process a time sequence of images.')
+# tf.app.flags.DEFINE_boolean('save_seg', True,
+#                             'Save segmentation.')
+# tf.app.flags.DEFINE_boolean('seg4', False,
+#                             'Segment all the 4 chambers in long-axis 4 chamber view. '
+#                             'This seg4 network is trained using 200 subjects from Application 18545.'
+#                             'By default, for all the other tasks (ventricular segmentation'
+#                             'on short-axis images and atrial segmentation on long-axis images,'
+#                             'the networks are trained using 3,975 subjects from Application 2964.')
+
+# Create an ArgumentParser object
+parser = argparse.ArgumentParser()
+
+# Define your flags (arguments)
+parser.add_argument('--seq_name', type=str, default='sa', choices=['sa', 'la_2ch', 'la_4ch'], help='Sequence name.')
+parser.add_argument('--data_dir', type=str, default='/vol/bitbucket/wbai/own_work/ukbb_cardiac_demo', help='Path to the data set directory.')
+parser.add_argument('--model_path', type=str, default='', help='Path to the saved trained model.')
+parser.add_argument('--process_seq', type=bool, default=True, help='Process a time sequence of images.')
+parser.add_argument('--save_seg', type=bool, default=True, help='Save segmentation.')
+parser.add_argument('--seg4', type=bool, default=False, help='Segment all the 4 chambers in long-axis 4 chamber view.')
+
+# Parse the arguments
+FLAGS = parser.parse_args()
 
 
 if __name__ == '__main__':
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
+    tf.compat.v1.disable_eager_execution()
+    with tf.compat.v1.Session() as sess:
+        sess.run(tf.compat.v1.global_variables_initializer())
 
         # Import the computation graph and restore the variable values
-        saver = tf.train.import_meta_graph('{0}.meta'.format(FLAGS.model_path))
+        saver = tf.compat.v1.train.import_meta_graph('{0}.meta'.format(FLAGS.model_path))
         saver.restore(sess, '{0}'.format(FLAGS.model_path))
 
         print('Start deployment on the data set ...')
         start_time = time.time()
 
         # Process each subject subdirectory
-        data_list = sorted(os.listdir(FLAGS.data_dir))
+        # data_list = sorted(os.listdir(FLAGS.data_dir))
+        data_list = pd.read_csv("empty_files_idx.csv", header=None)[0].to_list()
+
+        print(data_list[:10])
+
+        # not process all patients. Start from last non-processed:
+        # last_non_proc_idx = data_list.index("5290159")
+
+        # data_list = data_list[last_non_proc_idx:]
+
         processed_list = []
         table_time = []
+
+        print("FLAGS.process_seq:, ", FLAGS.process_seq)
+        print("data_list = ", data_list)
+
         for data in data_list:
-            print(data)
+            # print("data = ", data)
+            data = str(data)
             data_dir = os.path.join(FLAGS.data_dir, data)
+            # print("data_dir = ", data_dir)
 
             if FLAGS.seq_name == 'la_4ch' and FLAGS.seg4:
                 seg_name = '{0}/seg4_{1}.nii.gz'.format(data_dir, FLAGS.seq_name)
             else:
                 seg_name = '{0}/seg_{1}.nii.gz'.format(data_dir, FLAGS.seq_name)
-            if os.path.exists(seg_name):
-                continue
+            # if os.path.exists(seg_name):
+            #     continue
 
             if FLAGS.process_seq:
+                
                 # Process the temporal sequence
                 image_name = '{0}/{1}.nii.gz'.format(data_dir, FLAGS.seq_name)
-
+                
+                print("image_name: ", image_name)
+                
                 if not os.path.exists(image_name):
                     print('  Directory {0} does not contain an image with file '
                           'name {1}. Skip.'.format(data_dir, os.path.basename(image_name)))
@@ -82,7 +119,7 @@ if __name__ == '__main__':
                 # Read the image
                 print('  Reading {} ...'.format(image_name))
                 nim = nib.load(image_name)
-                image = nim.get_data()
+                image = nim.get_fdata()
                 X, Y, Z, T = image.shape
                 orig_image = image
 
@@ -104,9 +141,14 @@ if __name__ == '__main__':
                 image = np.pad(image, ((x_pre, x_post), (y_pre, y_post), (0, 0), (0, 0)), 'constant')
 
                 # Process each time frame
+
+                # # We want to obtain just one frame. Not all the time.
+                T = 1
                 for t in range(T):
                     # Transpose the shape to NXYC
-                    image_fr = image[:, :, :, t]
+                    # We are only interested on the middle slice
+
+                    image_fr = image[:, :,Z//2:Z//2+1, t]
                     image_fr = np.transpose(image_fr, axes=(2, 0, 1)).astype(np.float32)
                     image_fr = np.expand_dims(image_fr, axis=-1)
 
@@ -143,6 +185,8 @@ if __name__ == '__main__':
                         seg_name = '{0}/seg4_{1}.nii.gz'.format(data_dir, FLAGS.seq_name)
                     else:
                         seg_name = '{0}/seg_{1}.nii.gz'.format(data_dir, FLAGS.seq_name)
+
+                    print(f"saving segmentation to {seg_name}")
                     nib.save(nim2, seg_name)
 
                     for fr in ['ED', 'ES']:
