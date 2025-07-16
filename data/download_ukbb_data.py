@@ -17,7 +17,7 @@ import argparse
 def get_args_parser():
     parser = argparse.ArgumentParser('Download UKBB Data', add_help=False)
 
-    parser.add_argument('--num_workers', default=8, type=int)
+    parser.add_argument('--num_workers', default=16, type=int)
     parser.add_argument('--out_dir', type=str)
     parser.add_argument('--id_path', type=str)
 
@@ -42,6 +42,12 @@ def process_patient(eid, data_root):
 
     # 209 -> short axis
     source_zip = f'/projects/0/aus20644/data/ukbiobank/imaging/cardiac_mri/20209_short_axis_heart/imaging_visit_array_0/{eid}_20209_2_0.zip'
+                  # projects/0/aus20644/data/ukbiobank/imaging/cardiac_mri/20211_cine_tagging_images/imaging_visit_array_0/{eid}_20211_2_0
+    # 211 -> tag images
+    # source_zip = f'/projects/0/aus20644/data/ukbiobank/imaging/cardiac_mri/20211_cine_tagging_images/imaging_visit_array_0/{eid}_20211_2_0.zip'
+
+    # 211 -> long axis
+    source_zip = f'/projects/0/aus20644/data/ukbiobank/imaging/cardiac_mri/20208_long_axis_heart/imaging_visit_array_0/{eid}_20208_2_0.zip'
     shutil.copy(source_zip, dicom_dir)
 
     # Unpack the data (list the zip files for the different modalities)
@@ -107,6 +113,8 @@ if __name__ == '__main__':
     ids_patients = args.id_path
     df = pd.read_csv(ids_patients, names=['IDs'])
     data_list = list(df['IDs'])
+    data_list.sort()
+    # data_list = data_list[len(data_list) // 2 :]
 
     # Performance improvement: Process patients in parallel
     max_workers = args.num_workers  # Adjust based on system resources
@@ -127,4 +135,3 @@ if __name__ == '__main__':
 
     total_end = time.time()
     print(f"\033[32m All patients processed in {total_end - total_start:.2f} seconds \033[0m")
-

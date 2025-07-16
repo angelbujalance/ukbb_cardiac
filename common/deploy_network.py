@@ -76,7 +76,10 @@ if __name__ == '__main__':
 
         # Process each subject subdirectory
         # data_list = sorted(os.listdir(FLAGS.data_dir))
-        data_list = pd.read_csv("empty_files_idx.csv", header=None)[0].to_list()
+        pre_processed_list = pd.read_csv("empty_files_idx.csv", header=None)[0].to_list()
+        data_list = pd.read_csv('/home/abujalancegome/sorted_pre_processed_ids.txt', header=None)[0].to_list()
+        data_list = list(set(data_list) - set(pre_processed_list))
+
 
         print(data_list[:10])
 
